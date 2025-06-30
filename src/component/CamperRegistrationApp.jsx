@@ -1,0 +1,802 @@
+import React, { useState, useEffect } from "react";
+import {
+  Users,
+  Plus,
+  Download,
+  Upload,
+  Edit2,
+  Trash2,
+  Search,
+  Filter,
+  Save,
+  X,
+  Check,
+  AlertCircle,
+} from "lucide-react";
+
+const CamperRegistrationApp = () => {
+  const [campers, setCampers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCabin, setFilterCabin] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingCamper, setEditingCamper] = useState(null);
+  const [bulkImportData, setBulkImportData] = useState("");
+  const [showBulkImport, setShowBulkImport] = useState(false);
+
+  // Form state for new/editing camper
+  const [camperForm, setCamperForm] = useState({
+    name: "",
+    cabin: "",
+    age: "",
+    emergencyContact: "",
+    emergencyContactName: "",
+    medicalNotes: "",
+    parentEmail: "",
+    dietary: "",
+  });
+
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    const savedCampers = localStorage.getItem("campCampers");
+    if (savedCampers) {
+      setCampers(JSON.parse(savedCampers));
+    }
+  }, []);
+
+  // Save to localStorage whenever campers change
+  useEffect(() => {
+    localStorage.setItem("campCampers", JSON.stringify(campers));
+  }, [campers]);
+
+  // Generate unique camper ID
+  const generateCamperId = () => {
+    const existingIds = campers.map((c) => parseInt(c.id.substring(1)));
+    const nextId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
+    return "C" + String(nextId).padStart(3, "0");
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setCamperForm({
+      name: "",
+      cabin: "",
+      age: "",
+      emergencyContact: "",
+      emergencyContactName: "",
+      medicalNotes: "",
+      parentEmail: "",
+      dietary: "",
+    });
+  };
+
+  // Add new camper
+  const addCamper = () => {
+    if (!camperForm.name || !camperForm.cabin || !camperForm.age) {
+      alert("Please fill in all required fields (Name, Cabin, Age)");
+      return;
+    }
+
+    const newCamper = {
+      id: generateCamperId(),
+      ...camperForm,
+      qrData: `${generateCamperId()}|${camperForm.name}|${camperForm.cabin}|${
+        camperForm.age
+      }|${camperForm.medicalNotes || "None"}`,
+      registeredAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setCampers([...campers, newCamper]);
+    resetForm();
+    setShowAddForm(false);
+  };
+
+  // Start editing camper
+  const startEdit = (camper) => {
+    setCamperForm({
+      name: camper.name,
+      cabin: camper.cabin,
+      age: camper.age,
+      emergencyContact: camper.emergencyContact,
+      emergencyContactName: camper.emergencyContactName || "",
+      medicalNotes: camper.medicalNotes,
+      parentEmail: camper.parentEmail || "",
+      dietary: camper.dietary || "",
+    });
+    setEditingCamper(camper.id);
+  };
+
+  // Save edited camper
+  const saveEdit = () => {
+    if (!camperForm.name || !camperForm.cabin || !camperForm.age) {
+      alert("Please fill in all required fields (Name, Cabin, Age)");
+      return;
+    }
+
+    setCampers(
+      campers.map((camper) =>
+        camper.id === editingCamper
+          ? {
+              ...camper,
+              ...camperForm,
+              qrData: `${camper.id}|${camperForm.name}|${camperForm.cabin}|${
+                camperForm.age
+              }|${camperForm.medicalNotes || "None"}`,
+              lastUpdated: new Date().toISOString(),
+            }
+          : camper
+      )
+    );
+
+    setEditingCamper(null);
+    resetForm();
+  };
+
+  // Cancel edit
+  const cancelEdit = () => {
+    setEditingCamper(null);
+    resetForm();
+  };
+
+  // Delete camper
+  const deleteCamper = (id) => {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this camper? This action cannot be undone."
+      )
+    ) {
+      setCampers(campers.filter((camper) => camper.id !== id));
+    }
+  };
+
+  // Export data
+  const exportData = (format = "json") => {
+    if (format === "json") {
+      const dataStr = JSON.stringify(campers, null, 2);
+      const dataUri =
+        "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+      const exportFileDefaultName = `camp-campers-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
+      const linkElement = document.createElement("a");
+      linkElement.setAttribute("href", dataUri);
+      linkElement.setAttribute("download", exportFileDefaultName);
+      linkElement.click();
+    } else if (format === "csv") {
+      const headers = [
+        "ID",
+        "Name",
+        "Cabin",
+        "Age",
+        "Emergency Contact",
+        "Emergency Contact Name",
+        "Medical Notes",
+        "Parent Email",
+        "Dietary",
+        "Registered At",
+      ];
+      const csvContent = [
+        headers.join(","),
+        ...campers.map((camper) =>
+          [
+            camper.id,
+            `"${camper.name}"`,
+            `"${camper.cabin}"`,
+            camper.age,
+            `"${camper.emergencyContact || ""}"`,
+            `"${camper.emergencyContactName || ""}"`,
+            `"${camper.medicalNotes || ""}"`,
+            `"${camper.parentEmail || ""}"`,
+            `"${camper.dietary || ""}"`,
+            `"${camper.registeredAt}"`,
+          ].join(",")
+        ),
+      ].join("\n");
+
+      const dataUri =
+        "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+      const exportFileDefaultName = `camp-campers-${
+        new Date().toISOString().split("T")[0]
+      }.csv`;
+      const linkElement = document.createElement("a");
+      linkElement.setAttribute("href", dataUri);
+      linkElement.setAttribute("download", exportFileDefaultName);
+      linkElement.click();
+    }
+  };
+
+  // Bulk import from CSV
+  const processBulkImport = () => {
+    try {
+      const lines = bulkImportData.trim().split("\n");
+      const headers = lines[0]
+        .toLowerCase()
+        .split(",")
+        .map((h) => h.trim());
+
+      const newCampers = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i]
+          .split(",")
+          .map((v) => v.trim().replace(/"/g, ""));
+        const camperData = {};
+
+        headers.forEach((header, index) => {
+          if (values[index]) {
+            switch (header) {
+              case "name":
+              case "full name":
+                camperData.name = values[index];
+                break;
+              case "cabin":
+              case "group":
+                camperData.cabin = values[index];
+                break;
+              case "age":
+                camperData.age = values[index];
+                break;
+              case "emergency contact":
+              case "phone":
+                camperData.emergencyContact = values[index];
+                break;
+              case "emergency contact name":
+              case "parent name":
+                camperData.emergencyContactName = values[index];
+                break;
+              case "medical notes":
+              case "medical":
+                camperData.medicalNotes = values[index];
+                break;
+              case "email":
+              case "parent email":
+                camperData.parentEmail = values[index];
+                break;
+              case "dietary":
+              case "diet":
+                camperData.dietary = values[index];
+                break;
+            }
+          }
+        });
+
+        if (camperData.name && camperData.cabin && camperData.age) {
+          const newCamper = {
+            id:
+              "C" +
+              String(campers.length + newCampers.length + 1).padStart(3, "0"),
+            name: camperData.name,
+            cabin: camperData.cabin,
+            age: camperData.age,
+            emergencyContact: camperData.emergencyContact || "",
+            emergencyContactName: camperData.emergencyContactName || "",
+            medicalNotes: camperData.medicalNotes || "",
+            parentEmail: camperData.parentEmail || "",
+            dietary: camperData.dietary || "",
+            qrData: `C${String(campers.length + newCampers.length + 1).padStart(
+              3,
+              "0"
+            )}|${camperData.name}|${camperData.cabin}|${camperData.age}|${
+              camperData.medicalNotes || "None"
+            }`,
+            registeredAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+          };
+          newCampers.push(newCamper);
+        }
+      }
+
+      setCampers([...campers, ...newCampers]);
+      setBulkImportData("");
+      setShowBulkImport(false);
+      alert(`Successfully imported ${newCampers.length} campers!`);
+    } catch (error) {
+      alert("Error processing bulk import. Please check your CSV format.");
+    }
+  };
+
+  // Filter campers
+  const filteredCampers = campers.filter((camper) => {
+    const matchesSearch =
+      camper.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      camper.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCabin = !filterCabin || camper.cabin === filterCabin;
+    return matchesSearch && matchesCabin;
+  });
+
+  // Get unique cabins
+  const uniqueCabins = [...new Set(campers.map((c) => c.cabin))].sort();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+            Camp Camper Registration
+          </h1>
+          <p className="text-gray-600">
+            Manage and register all camp participants
+          </p>
+        </div>
+
+        {/* Action Bar */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-green-100 text-green-800 px-3 py-2 rounded-lg font-semibold">
+                <Users size={18} className="inline mr-2" />
+                {campers.length} Registered
+              </div>
+              <div className="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg font-semibold">
+                {uniqueCabins.length} Cabins
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowBulkImport(true)}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+              >
+                <Upload size={18} className="mr-2" />
+                Bulk Import
+              </button>
+              <div className="relative">
+                <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center transition-colors peer">
+                  <Download size={18} className="mr-2" />
+                  Export
+                </button>
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden peer-hover:block hover:block z-10">
+                  <button
+                    onClick={() => exportData("json")}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                  >
+                    Export as JSON
+                  </button>
+                  <button
+                    onClick={() => exportData("csv")}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                  >
+                    Export as CSV
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+              >
+                <Plus size={18} className="mr-2" />
+                Add Camper
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search
+                  size={18}
+                  className="absolute left-3 top-3 text-gray-400"
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by name or ID..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="min-w-48">
+              <select
+                value={filterCabin}
+                onChange={(e) => setFilterCabin(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                <option value="">All Cabins</option>
+                {uniqueCabins.map((cabin) => (
+                  <option key={cabin} value={cabin}>
+                    {cabin}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Campers List */}
+        <div className="bg-white rounded-lg shadow-md">
+          {filteredCampers.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              {campers.length === 0 ? (
+                <>
+                  <Users size={64} className="mx-auto text-gray-300 mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">
+                    No Campers Registered Yet
+                  </h3>
+                  <p className="mb-4">
+                    Start by adding your first camper or use bulk import for
+                    multiple entries.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Search size={64} className="mx-auto text-gray-300 mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">
+                    No Results Found
+                  </h3>
+                  <p>Try adjusting your search or filter criteria.</p>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      ID
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Name
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Cabin
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Age
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Emergency Contact
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Medical
+                    </th>
+                    <th className="text-left p-4 font-semibold text-gray-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCampers.map((camper) => (
+                    <tr key={camper.id} className="border-b hover:bg-gray-50">
+                      <td className="p-4 font-mono text-sm">{camper.id}</td>
+                      <td className="p-4">
+                        <div className="font-semibold text-gray-800">
+                          {camper.name}
+                        </div>
+                        {camper.parentEmail && (
+                          <div className="text-sm text-gray-600">
+                            {camper.parentEmail}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 text-gray-700">{camper.cabin}</td>
+                      <td className="p-4 text-gray-700">{camper.age}</td>
+                      <td className="p-4">
+                        <div className="text-gray-700">
+                          {camper.emergencyContact}
+                        </div>
+                        {camper.emergencyContactName && (
+                          <div className="text-sm text-gray-600">
+                            {camper.emergencyContactName}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {camper.medicalNotes ? (
+                          <div className="flex items-center">
+                            <AlertCircle
+                              size={16}
+                              className="text-red-500 mr-1"
+                            />
+                            <span className="text-sm text-red-700">
+                              {camper.medicalNotes}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">None</span>
+                        )}
+                        {camper.dietary && (
+                          <div className="text-sm text-blue-700 mt-1">
+                            Diet: {camper.dietary}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEdit(camper)}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Edit camper"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => deleteCamper(camper.id)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Delete camper"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Add/Edit Camper Modal */}
+        {(showAddForm || editingCamper) && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {editingCamper ? "Edit Camper" : "Add New Camper"}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      if (editingCamper) {
+                        cancelEdit();
+                      } else {
+                        setShowAddForm(false);
+                        resetForm();
+                      }
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={camperForm.name}
+                        onChange={(e) =>
+                          setCamperForm({ ...camperForm, name: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Enter camper's full name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Cabin/Group *
+                      </label>
+                      <input
+                        type="text"
+                        value={camperForm.cabin}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            cabin: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="e.g., Cabin 7, Blue Group"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Age *
+                      </label>
+                      <input
+                        type="number"
+                        value={camperForm.age}
+                        onChange={(e) =>
+                          setCamperForm({ ...camperForm, age: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Age"
+                        min="8"
+                        max="18"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Parent Email
+                      </label>
+                      <input
+                        type="email"
+                        value={camperForm.parentEmail}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            parentEmail: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="parent@email.com"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Emergency Contact Name
+                      </label>
+                      <input
+                        type="text"
+                        value={camperForm.emergencyContactName}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            emergencyContactName: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Parent/Guardian name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Emergency Contact Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={camperForm.emergencyContact}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            emergencyContact: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Phone number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Dietary Requirements
+                      </label>
+                      <input
+                        type="text"
+                        value={camperForm.dietary}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            dietary: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Vegetarian, allergies, etc."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Medical Notes
+                      </label>
+                      <textarea
+                        value={camperForm.medicalNotes}
+                        onChange={(e) =>
+                          setCamperForm({
+                            ...camperForm,
+                            medicalNotes: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-20"
+                        placeholder="Allergies, medications, special needs..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                  <button
+                    onClick={() => {
+                      if (editingCamper) {
+                        cancelEdit();
+                      } else {
+                        setShowAddForm(false);
+                        resetForm();
+                      }
+                    }}
+                    className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={editingCamper ? saveEdit : addCamper}
+                    className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center"
+                  >
+                    {editingCamper ? (
+                      <Save size={18} className="mr-2" />
+                    ) : (
+                      <Plus size={18} className="mr-2" />
+                    )}
+                    {editingCamper ? "Save Changes" : "Add Camper"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Import Modal */}
+        {showBulkImport && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Bulk Import Campers
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowBulkImport(false);
+                      setBulkImportData("");
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-gray-600 mb-2">
+                    Paste your CSV data below. First row should contain headers.
+                    Supported columns:
+                  </p>
+                  <div className="bg-gray-50 p-3 rounded text-sm text-gray-700">
+                    <strong>Required:</strong> name, cabin, age
+                    <br />
+                    <strong>Optional:</strong> emergency contact, emergency
+                    contact name, medical notes, parent email, dietary
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    CSV Data
+                  </label>
+                  <textarea
+                    value={bulkImportData}
+                    onChange={(e) => setBulkImportData(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-40"
+                    placeholder="name,cabin,age,emergency contact,medical notes
+John Doe,Cabin 1,12,555-1234,None
+Jane Smith,Cabin 2,11,555-5678,Peanut allergy"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowBulkImport(false);
+                      setBulkImportData("");
+                    }}
+                    className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={processBulkImport}
+                    className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center"
+                    disabled={!bulkImportData.trim()}
+                  >
+                    <Upload size={18} className="mr-2" />
+                    Import Campers
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default CamperRegistrationApp;
