@@ -1,0 +1,314 @@
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Camera, Users, Plus, Download, CheckCircle, XCircle, User } from 'lucide-react';
+
+// Mock database - in production, replace with Supabase
+const mockCampers = [
+  { id: 1, name: 'John Doe', age: 12, qrCode: 'CAMPER001', registered: true },
+  { id: 2, name: 'Jane Smith', age: 14, qrCode: 'CAMPER002', registered: true },
+  { id: 3, name: 'Mike Johnson', age: 13, qrCode: 'CAMPER003', registered: true },
+];
+
+const CamperManagementApp = () => {
+  const [activeTab, setActiveTab] = useState('scanner');
+  const [campers, setCampers] = useState(mockCampers);
+  const [scannedCampers, setScannedCampers] = useState([]);
+  const [scanResult, setScanResult] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [formData, setFormData] = useState({ name: '', age: '' });
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  // QR Code Scanner Mock (in production, use a QR scanning library)
+  const startScanning = () => {
+    setIsScanning(true);
+    setScanResult(null);
+    // Mock camera access
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch(err => console.error('Camera access denied:', err));
+  };
+
+  const stopScanning = () => {
+    setIsScanning(false);
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+  };
+
+  // Mock QR code scanning function
+  const mockScanQR = (qrCode) => {
+    const camper = campers.find(c => c.qrCode === qrCode);
+    if (camper) {
+      setScanResult({ success: true, camper });
+      // Add to scanned campers if not already present
+      if (!scannedCampers.find(sc => sc.id === camper.id)) {
+        setScannedCampers(prev => [...prev, { ...camper, scannedAt: new Date() }]);
+      }
+    } else {
+      setScanResult({ success: false, message: 'Camper not found in database' });
+    }
+    stopScanning();
+  };
+
+  // Generate QR code (mock implementation)
+  const generateQRCode = (text) => {
+    // In production, use a QR code library like qrcode.js
+    return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="white"/><text x="50" y="50" text-anchor="middle" font-family="Arial" font-size="8">${text}</text></svg>`;
+  };
+
+  const registerCamper = () => {
+    if (formData.name && formData.age) {
+      const newCamper = {
+        id: Date.now(),
+        name: formData.name,
+        age: parseInt(formData.age),
+        qrCode: `CAMPER${String(Date.now()).slice(-3)}`,
+        registered: true
+      };
+      setCampers(prev => [...prev, newCamper]);
+      setFormData({ name: '', age: '' });
+    }
+  };
+
+  const exportToPDF = (camper) => {
+    // Mock PDF export - in production, use jsPDF or similar
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head><title>Camper QR Code - ${camper.name}</title></head>
+        <body style="text-align: center; font-family: Arial;">
+          <h2>${camper.name}</h2>
+          <p>Age: ${camper.age}</p>
+          <p>QR Code: ${camper.qrCode}</p>
+          <img src="${generateQRCode(camper.qrCode)}" alt="QR Code" style="width: 200px; height: 200px;"/>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <h1 className="text-2xl font-bold text-gray-900">Camper Management</h1>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setActiveTab('scanner')}
+                className={`flex items-center px-4 py-2 rounded-lg ${
+                  activeTab === 'scanner' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Camera className="w-5 h-5 mr-2" />
+                Scanner
+              </button>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex items-center px-4 py-2 rounded-lg ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Users className="w-5 h-5 mr-2" />
+                Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'scanner' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-4">QR Code Scanner</h2>
+              
+              {!isScanning ? (
+                <div className="text-center">
+                  <button
+                    onClick={startScanning}
+                    className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center mx-auto"
+                  >
+                    <Camera className="w-5 h-5 mr-2" />
+                    Start Scanning
+                  </button>
+                  
+                  {/* Mock scan buttons for demo */}
+                  <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-2">Demo: Click to simulate scanning</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {campers.map(camper => (
+                        <button
+                          key={camper.id}
+                          onClick={() => mockScanQR(camper.qrCode)}
+                          className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
+                        >
+                          Scan {camper.qrCode}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => mockScanQR('INVALID')}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Invalid QR
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full max-w-md mx-auto rounded-lg"
+                  />
+                  <button
+                    onClick={stopScanning}
+                    className="mt-4 bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600"
+                  >
+                    Stop Scanning
+                  </button>
+                </div>
+              )}
+
+              {scanResult && (
+                <div className={`mt-4 p-4 rounded-lg ${
+                  scanResult.success ? 'bg-green-100 border-green-400' : 'bg-red-100 border-red-400'
+                } border`}>
+                  <div className="flex items-center">
+                    {scanResult.success ? (
+                      <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 mr-2" />
+                    )}
+                    <div>
+                      {scanResult.success ? (
+                        <div>
+                          <p className="font-semibold text-green-800">Camper Present!</p>
+                          <p className="text-green-700">{scanResult.camper.name} (Age: {scanResult.camper.age})</p>
+                        </div>
+                      ) : (
+                        <p className="text-red-800">{scanResult.message}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Scanned Campers List */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold mb-4">Scanned Campers ({scannedCampers.length})</h3>
+              {scannedCampers.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No campers scanned yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {scannedCampers.map((camper) => (
+                    <div key={camper.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center">
+                        <User className="w-5 h-5 text-gray-600 mr-3" />
+                        <div>
+                          <p className="font-medium">{camper.name}</p>
+                          <p className="text-sm text-gray-600">Age: {camper.age} • QR: {camper.qrCode}</p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-500">
+                        {camper.scannedAt.toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Registration Form */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-4">Register New Camper</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                    <input
+                      type="number"
+                      value={formData.age}
+                      onChange={(e) => setFormData(prev => ({ ...prev, age: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={registerCamper}
+                  className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 flex items-center"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Register Camper
+                </button>
+              </div>
+            </div>
+
+            {/* Campers List */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-4">Registered Campers ({campers.length})</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {campers.map((camper) => (
+                  <div key={camper.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold">{camper.name}</h3>
+                        <p className="text-sm text-gray-600">Age: {camper.age}</p>
+                        <p className="text-sm text-gray-600">QR: {camper.qrCode}</p>
+                      </div>
+                      <div className="text-center">
+                        <img
+                          src={generateQRCode(camper.qrCode)}
+                          alt="QR Code"
+                          className="w-16 h-16 border border-gray-300 rounded"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => exportToPDF(camper)}
+                      className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 flex items-center justify-center"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export PDF
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default CamperManagementApp;
